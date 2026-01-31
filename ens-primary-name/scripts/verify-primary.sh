@@ -32,7 +32,7 @@ case "$CHAIN" in
     IS_L2=true
     ;;
   ethereum|mainnet)
-    RPC_URL="https://1.rpc.thirdweb.com"
+    RPC_URL="https://eth.publicnode.com"
     CHAIN_ID=1
     REVERSE_REGISTRAR="0x283F227c4Bd38ecE252C4Ae7ECE650B0e913f1f9"
     IS_L2=false
