@@ -13,21 +13,23 @@ A primary name creates a bi-directional link:
 
 ## Requirements
 
-### Required: Transaction Signing
+### Required: Bankr CLI
 
-This skill requires a way to sign and submit transactions. It looks for the **bankr skill** which provides wallet functionality via the Bankr API.
+This skill requires the **Bankr CLI** for transaction signing and submission.
 
-**If you don't have bankr installed:**
-
-1. Install from: https://github.com/BankrBot/openclaw-skills (bankr skill)
-2. Or modify the scripts to use your own transaction submission method
-
-The scripts call bankr.sh with a prompt like:
-```
-Submit this transaction: {"to": "0x...", "data": "0x...", "value": "0", "chainId": 8453}
+**Install:**
+```bash
+npm install -g @bankr/cli
 ```
 
-You can replace the `find_bankr()` function in each script with your own wallet/signer.
+**Setup:**
+```bash
+bankr login
+```
+
+The scripts use `bankr prompt` to sign and submit transactions. If you prefer a different wallet solution, you can modify the scripts to use your own transaction submission method.
+
+**More info:** https://docs.bankr.bot
 
 ### Required: Node.js
 
