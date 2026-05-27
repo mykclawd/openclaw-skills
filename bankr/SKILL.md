@@ -1,6 +1,6 @@
 ---
 name: bankr
-description: AI-powered crypto trading agent, wallet API, and LLM gateway via natural language. Use when the user wants to trade crypto, check portfolio balances (with PnL and NFTs), view token prices, search tokens, transfer crypto, manage NFTs, use leverage (Hyperliquid or Avantis), bet on Polymarket, deploy tokens, set up automated trading, sign and submit raw transactions, call x402 paid API endpoints, or access LLM models through the Bankr LLM gateway funded by your Bankr wallet. Supports Base, Ethereum, Polygon, Solana, and Unichain.
+description: AI-powered crypto trading agent, wallet API, and LLM gateway via natural language. Use when the user wants to trade crypto, check portfolio balances (with PnL and NFTs), view token prices, search tokens, transfer crypto, manage NFTs, use leverage (Hyperliquid or Avantis), bet on Polymarket, deploy tokens, set up automated trading, sign and submit raw transactions, call or deploy x402 paid API endpoints, browse the web, or access LLM models through the Bankr LLM gateway funded by your Bankr wallet. Supports Base, Ethereum, Polygon, Solana, and Unichain.
 metadata:
   {
     "clawdbot":
@@ -233,6 +233,15 @@ Omit `threadId` to start a new conversation. CLI equivalent: `bankr agent prompt
 - **Write endpoints** (`/wallet/transfer`, `/wallet/sign`, `/wallet/submit`) — require `walletApiEnabled`, `readOnly` check, and `allowedRecipients` enforcement
 - IP allowlist enforced on all endpoints
 
+#### Recipient & user lookup helpers (public, no auth)
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/addresses/resolve?value=<recipient>&type=<address\|ens\|twitter\|farcaster>` | GET | Resolve a recipient (0x address, ENS-style name `.eth`/`.base.eth`/`.cb.id`, or social handle) to a 0x address. Used by `bankr wallet transfer --to` to support ENS input. |
+| `/users/search?...` | GET | Search Bankr users by Twitter or Farcaster username. |
+
+The legacy aliases `/public/resolve-recipient` and `/public/search-users` still work but are marked deprecated (Sunset: 2026-06-03) — migrate callers to the structured `/addresses/*` and `/users/*` namespaces.
+
 #### Agent API (`/agent/*`) — AI-powered endpoints (async)
 
 | Endpoint | Method | Description |
@@ -241,12 +250,18 @@ Omit `threadId` to start a new conversation. CLI equivalent: `bankr agent prompt
 | `/agent/job/{jobId}` | GET | Check job status and results |
 | `/agent/job/{jobId}/cancel` | POST | Cancel a running job |
 
-#### Deprecated endpoints
+#### Public endpoints (no auth required)
 
-The following `/agent/*` endpoints still work but are deprecated in favor of `/wallet/*`:
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/token-launches` | GET | List recent token launches (cached, public) |
 
-| Deprecated | Use Instead |
-|-----------|-------------|
+#### Removed legacy endpoints
+
+The following `/agent/*` endpoints have been removed. Use the `/wallet/*` equivalents:
+
+| Removed | Use Instead |
+|---------|-------------|
 | `GET /agent/me` | `GET /wallet/me` |
 | `GET /agent/balances` | `GET /wallet/portfolio` |
 | `POST /agent/sign` | `POST /wallet/sign` |
@@ -256,9 +271,9 @@ For full API details (request/response schemas, job states, rich data, polling s
 
 **Reference**: [references/api-workflow.md](references/api-workflow.md) | [references/sign-submit-api.md](references/sign-submit-api.md)
 
-## CLI Command Reference (v0.2.0)
+## CLI Command Reference (v0.3.x)
 
-CLI 0.2.0 organizes commands into three namespaces: `wallet`, `agent`, and `tokens`. Old flat commands (`balances`, `prompt`, `status`, etc.) still work as deprecated aliases.
+`@bankr/cli` 0.2+ organizes commands into three namespaces: `wallet`, `agent`, and `tokens`. Old flat commands (`balances`, `prompt`, `status`, etc.) still work as deprecated aliases.
 
 ### `bankr wallet` — Wallet Operations
 
@@ -271,8 +286,8 @@ CLI 0.2.0 organizes commands into three namespaces: `wallet`, `agent`, and `toke
 | `bankr wallet portfolio --all` | Include both PnL and NFTs |
 | `bankr wallet portfolio --chain <chains>` | Filter by chain(s): base, polygon, mainnet, unichain, solana (comma-separated) |
 | `bankr wallet portfolio --json` | Output raw JSON |
-| `bankr wallet transfer --to <recipient> --token <symbol> --amount <amount>` | Transfer tokens with symbol resolution |
-| `bankr wallet transfer --to <recipient> --token USDC --amount 50 --chain base` | Transfer with explicit chain |
+| `bankr wallet transfer --to <recipient> --token <symbol> --amount <amount>` | Transfer tokens; `--to` accepts a 0x address or ENS-style name (`.eth`, `.base.eth`, `.cb.id`), `--token` resolves symbols to contracts. Social handles work via the AI agent only. |
+| `bankr wallet transfer --to vitalik.eth --token USDC --amount 50 --chain base` | ENS recipient with explicit chain |
 | `bankr wallet sign` | Sign messages/typed data/transactions |
 | `bankr wallet submit` | Submit raw transactions |
 
@@ -295,6 +310,22 @@ CLI 0.2.0 organizes commands into three namespaces: `wallet`, `agent`, and `toke
 | `bankr tokens search <query>` | Search for tokens by name or symbol |
 | `bankr tokens info <symbol-or-address>` | Get detailed token information |
 
+### `bankr club` — Bankr Club Membership
+
+Manage Bankr Club subscription from the CLI (status, signup, cancel). Pay with USDC (default), BNKR, ETH, or any Base ERC-20 — non-USDC/BNKR tokens are swapped to USDC at checkout.
+
+| Command | Description |
+|---------|-------------|
+| `bankr club` | Show membership status (default; same as `status`) |
+| `bankr club status` | Show plan, renewal date, and daily message count |
+| `bankr club signup` | Subscribe (monthly, USDC default) |
+| `bankr club signup --yearly` | Subscribe yearly ($198 — saves ~$42/year) |
+| `bankr club signup --token <symbol-or-addr>` | Pay with `USDC` (default), `BNKR`, `ETH`, or any 0x-prefixed Base ERC-20 |
+| `bankr club signup -y` | Skip the confirmation prompt |
+| `bankr club cancel` | Cancel subscription (access continues until period ends) |
+
+Pricing is $20/mo or $198/yr USD-equivalent. Actual on-chain amount depends on the chosen token's price at quote time. The `--token` flag was added in CLI 0.3.4; older versions only support USDC.
+
 ### Auth & Config Commands
 
 | Command | Description |
@@ -314,6 +345,34 @@ CLI 0.2.0 organizes commands into three namespaces: `wallet`, `agent`, and `toke
 Valid config keys: `apiKey`, `apiUrl`, `llmKey`, `llmUrl`
 
 Default config location: `~/.bankr/config.json`. Override with `--config` or `BANKR_CONFIG` env var.
+
+### Non-Interactive Mode
+
+For headless environments — CI pipelines, Docker containers, cron jobs — pass the `--not-interactive` (alias `--ni`) global flag, or set `BANKR_NOT_INTERACTIVE=1`. Both forms work before or after the subcommand.
+
+The flag implies `--yes` on every confirmation prompt and fails fast (exit 1, clear error) when a command would otherwise hang on a required prompt. Use it whenever the user asks for an automated/scripted invocation.
+
+| Command | Required headless flag(s) when --ni is set |
+|---------|---------------------------------------------|
+| `bankr login` | `--api-key <key>`, `login siwe --private-key <key>`, or `login email <addr> [--code <otp>]` |
+| `bankr launch` | `--name <name>` (other fields default to empty) |
+| `bankr fees claim-wallet` | `--all` (plus `--private-key` or `BANKR_PRIVATE_KEY`) |
+| `bankr agent` | a prompt argument or piped stdin |
+
+Read-only commands (`whoami`, `wallet portfolio`, `tokens`, `agent status`, etc.) don't prompt at all — `--ni` is harmless but redundant.
+
+Examples:
+
+```bash
+# Cron — claim creator fees nightly
+BANKR_PRIVATE_KEY=0x... bankr --ni fees claim-wallet --all
+
+# CI — programmatic token launch (simulate, no broadcast)
+bankr --ni launch --name MyToken --symbol MTK --simulate
+
+# Pipeline — agent prompt from stdin
+echo "summarize today's trades" | bankr --ni agent prompt
+```
 
 ### Deprecated Aliases
 
@@ -338,6 +397,7 @@ Old flat commands still work but prefer the namespaced versions:
 | `BANKR_API_URL` | API URL (default: `https://api.bankr.bot`) |
 | `BANKR_LLM_KEY` | LLM gateway key (falls back to `BANKR_API_KEY` if not set) |
 | `BANKR_LLM_URL` | LLM gateway URL (default: `https://llm.bankr.bot`) |
+| `BANKR_NOT_INTERACTIVE` | Set to `1` to enable non-interactive mode globally (equivalent to passing `--ni` / `--not-interactive` on every invocation) |
 
 Environment variables override config file values. Config file values override defaults.
 
@@ -433,18 +493,32 @@ The [Bankr LLM Gateway](https://docs.bankr.bot/llm-gateway/overview) is a unifie
 - **New accounts start with $0 LLM credits** — top up via `bankr llm credits add 25` or at [bankr.bot/llm?tab=credits](https://bankr.bot/llm?tab=credits) before making any LLM calls, or you will get a 402 error
 - Check credits: `bankr llm credits` | Top up: `bankr llm credits add <amount>` | Auto top-up: `bankr llm credits auto --enable --amount 25 --tokens USDC`
 - In OpenClaw config, prefix model IDs with `bankr/` (e.g. `bankr/claude-sonnet-4.6`). In direct API calls, use bare IDs (e.g. `claude-sonnet-4.6`)
+- **Per-model discounts** available for Bankr Club members and partners — applied automatically at billing time
 
 ### Quick Commands
 
 ```bash
 bankr llm models                           # List available models
 bankr llm credits                          # Check credit balance
-bankr llm credits add 25                   # Top up $25 credits (USDC)
-bankr llm credits auto --enable --amount 25 --tokens USDC  # Auto top-up
+bankr llm credits add 25                   # Top up $25 credits (defaults to Base USDC)
+bankr llm credits add 25 --token USDT      # Pay USDT on whichever chain holds the most
+bankr llm credits add 25 --token ETH       # Native token; auto-swapped on its chain
+bankr llm credits auto --enable --amount 25 --tokens USDC,USDT  # Multi-chain auto top-up
 bankr llm setup openclaw --install         # Install Bankr provider into OpenClaw
 bankr llm setup claude                     # Print Claude Code env vars
 bankr llm claude                           # Launch Claude Code through gateway
 ```
+
+### Agent Credit Top-Up
+
+The AI agent can top up your LLM credits directly in conversation — no CLI or web dashboard needed:
+
+```bash
+bankr agent prompt "Top up my LLM credits with $25"
+bankr agent prompt "Add $10 of LLM credits using my ETH"
+```
+
+1 credit = $1 USD. Multi-chain: pay with USDC or USDT directly on Base, Polygon, Ethereum, Arbitrum, or BNB Chain, or with any other ERC-20 (auto-swapped to the chain's preferred stablecoin — USDC on most chains, USDT on BNB). When using `--token`, the CLI picks the chain with the highest USD balance of that token. Maximum $1,000 per top-up.
 
 ### Model Deprecation
 
@@ -492,10 +566,11 @@ For full details — setup paths, model list, provider config, SDK examples, key
 
 ### Transfers
 
-- Send to addresses, ENS, or social handles
+- Send to 0x addresses, ENS-style names (`.eth`, `.base.eth`, `.cb.id`), or social handles
+- CLI direct (`bankr wallet transfer`) accepts 0x addresses + ENS only — social handles go through the AI agent
 - Multi-chain support
 - Flexible amount formats
-- Social handle resolution (Twitter, Farcaster, Telegram)
+- Social handle resolution (Twitter, Farcaster, Telegram) via the agent
 
 **Reference**: [references/transfers.md](references/transfers.md)
 
@@ -538,6 +613,7 @@ For full details — setup paths, model list, provider config, SDK examples, key
 - Both creator AND fee recipient can claim bonding curve fees (gas sponsored)
 - Optional vesting parameters (Solana)
 - Rate limits: 1/day standard, 10/day Bankr Club (gas sponsored within limits)
+- Tokens deployed through Bankr are always visible in your portfolio, even without market price data
 
 **Reference**: [references/token-deployment.md](references/token-deployment.md)
 
@@ -553,12 +629,25 @@ For full details — setup paths, model list, provider config, SDK examples, key
 
 ### x402 Paid API Calls
 
-The agent can discover and call x402-protected API endpoints, automatically handling USDC payments on Base:
+The agent can discover, call, and deploy x402-protected API endpoints, automatically handling USDC payments on Base:
 
 - **Discover** endpoints in the Bankr registry or via web search
 - **Inspect** endpoint pricing, methods, and input/output schemas
 - **Call** endpoints with automatic payment signing (max $10/request)
+- **Deploy** new x402 endpoints directly through the agent (write handler code, set pricing, deploy)
 - Works with any x402-compatible endpoint (Bankr-hosted or external)
+
+**Reference**: [references/x402-cloud.md](references/x402-cloud.md)
+
+### Web Browsing
+
+The agent has a built-in headless browser for web interactions:
+
+- **Open** URLs and navigate web pages
+- **Read** page content, extract data, and take screenshots
+- **Interact** with page elements (click, type, scroll)
+- **Persist** browser sessions across multi-step workflows
+- Useful for research, data extraction, and interacting with web apps that don't have APIs
 
 **Reference**: [references/x402-cloud.md](references/x402-cloud.md)
 
@@ -586,13 +675,46 @@ The agent can discover and call x402-protected API endpoints, automatically hand
 
 ## Safety & Access Control
 
-**Dedicated Agent Wallet**: When building autonomous agents, create a separate Bankr account rather than using your personal wallet. This isolates agent funds — if a key is compromised, only the agent wallet is exposed. Fund it with limited amounts and replenish as needed.
+Bankr has two independent layers of safety controls. A transaction must satisfy **both** to broadcast.
+
+### Wallet-Level Security (bankr.bot → Security)
+
+User-controlled settings that apply to every surface — chat, agent, API, CLI. Configured at [bankr.bot](https://bankr.bot) → Security; requires web authentication (an API key cannot change them).
+
+| Control | Default | Effect |
+|---------|---------|--------|
+| Pause all transactions | Off | Blocks every outbound transaction until unpaused |
+| Daily spending limit | $500 / 24h | Rejects any tx that pushes rolling-24h USD outflow past the limit |
+| Per-transaction limit | $500 | Rejects any single tx priced above the limit |
+| Permitted recipients | Off | Restricts transfers/swaps to an allowlist; new entries enter a configurable cooldown (default 24h) |
+| Disable arbitrary contract calls | Off | Blocks `write_contract`, raw `/wallet/submit`, and arbitrary transaction tools (named operations like swaps still work) |
+
+If USD pricing is unavailable and a limit is enabled, the transaction is **rejected** (fail-closed) rather than waved through. Your own wallet addresses are always implicitly allowed as recipients.
+
+### API-Key Level Controls (bankr.bot/api)
+
+Per-key settings configured at [bankr.bot/api](https://bankr.bot/api):
 
 **API Key Types**: Bankr uses a single key format (`bk_...`) with capability flags (`walletApiEnabled`, `agentApiEnabled`, `tokenLaunchApiEnabled`, `llmGatewayEnabled`). You can optionally configure a separate LLM Gateway key via `bankr config set llmKey` or `BANKR_LLM_KEY` — useful when you want independent revocation or different permissions for agent vs LLM access.
 
 **Read-Only API Keys**: New keys default to `readOnly: true`. This filters all write tools (swaps, transfers, staking, token launches, etc.) from agent sessions. The `/wallet/sign`, `/wallet/submit`, and `/wallet/transfer` write endpoints return 403. Use `--read-write` during login or toggle in the web settings to disable. Ideal for monitoring bots and research agents.
 
 **IP Whitelisting**: Set `allowedIps` on your API key to restrict usage to specific IPs or CIDR ranges (e.g., `10.0.0.0/24`). Requests from non-whitelisted IPs are rejected with 403 at the auth layer.
+
+**Recipient Allowlist**: Restrict which addresses the key can send funds to. Independent from the wallet-level permitted recipients — when both are configured, both must pass.
+
+### Incident Response
+
+If you suspect a key is compromised:
+
+1. **Pause** the wallet at [bankr.bot](https://bankr.bot) → Security — halts every outbound transaction immediately
+2. **Revoke** the key at [bankr.bot/api](https://bankr.bot/api)
+3. **Rotate** — generate a new key and update deployments
+4. **Audit** — review recent transactions and agent job history before unpausing
+
+### General
+
+**Dedicated Agent Wallet**: When building autonomous agents, create a separate Bankr account rather than using your personal wallet. This isolates agent funds — if a key is compromised, only the agent wallet is exposed. Fund it with limited amounts and replenish as needed.
 
 **Rate Limits**: 100 messages/day (standard), 1,000/day (Bankr Club), or custom per key. Resets 24h from first message (rolling window). LLM Gateway uses a credit-based system.
 
@@ -845,11 +967,27 @@ See [references/safety.md](references/safety.md) for comprehensive safety guidan
 - "Deploy a token called BankrFan with symbol BFAN on Base"
 - "Claim fees for my token MTK"
 
+### LLM Credits
+
+- "Top up my LLM credits with $25"
+- "Add $50 of LLM credits"
+- "Top up LLM credits using my ETH"
+- "Top up my LLM credits with $25 using USDT on Polygon"
+- "Add $10 of LLM credits paid in USDT on BNB"
+
 ### x402 Paid API Calls
 
 - "Find x402 endpoints for sentiment analysis"
 - "Call the weather endpoint on x402"
 - "What x402 endpoints are available for price data?"
+- "Deploy an x402 endpoint that returns crypto prices"
+- "Create an x402 service that summarizes articles"
+
+### Web Browsing
+
+- "Browse coingecko.com and get the top trending tokens"
+- "Go to this URL and extract the token contract address"
+- "Check the Uniswap UI for the current ETH/USDC pool stats"
 
 ### Arbitrary Transactions
 
@@ -859,11 +997,12 @@ See [references/safety.md](references/safety.md) for comprehensive safety guidan
 
 ### Transfers (Direct)
 
-Transfer tokens via CLI or Wallet API without AI processing:
+Transfer tokens via CLI or Wallet API without AI processing. The CLI's `--to` accepts a 0x address or ENS-style name (`.eth`, `.base.eth`, `.cb.id`); the Wallet API accepts the same plus anything `/addresses/resolve` understands. For social handles (Twitter, Farcaster, Telegram) use the AI agent.
 
 ```bash
-# CLI — token symbol resolution built in
+# CLI — token symbol resolution + ENS resolution built in
 bankr wallet transfer --to vitalik.eth --token USDC --amount 50 --chain base
+bankr wallet transfer --to name.base.eth --native --amount 0.01
 bankr wallet transfer --to 0x1234... --token ETH --amount 0.1
 
 # REST API
